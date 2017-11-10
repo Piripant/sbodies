@@ -19,12 +19,11 @@ class BodyVertex {
         float joint_force;
         float damping_ratio;
         std::array<double, 2> original_distances;
-        std::array<BodyVertex*, 2> joined_bodies;
+        std::array<unsigned int, 2> joined_bodies;
         
         BodyVertex(Vector position);
-        void set_joints(BodyVertex* body_a, BodyVertex* body_b);
         void apply_force(float dt, Vector force);
-        void update(float dt, float volume);
+        void update(float dt);
 };
 
 class Body {
@@ -32,6 +31,9 @@ class Body {
         std::vector<BodyVertex> verts;
 
         Body(unsigned int num_verts);
+        void set_joints();
+        void append_vertex(BodyVertex vertex);
+        void update_vertex(BodyVertex& vertex, float dt, float volume);
         void update(float dt);
         float get_volume();
 };

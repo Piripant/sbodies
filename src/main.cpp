@@ -15,8 +15,10 @@ bool mouse_pressed = false;
 int press_y = 0;
 int press_x = 0;
 
-int nvertex = 6;
+int nvertex = 3;
 float sim_speed = 1.0;
+
+bool edit_mode = true;
 
 int main() {
 	// create the window
@@ -40,7 +42,7 @@ int main() {
 
         dt *= sim_speed;
         
-        // check all the window's events that were triggered since the last iteration of the loop
+        auto size = window.getSize();
         sf::Event event;
         while (window.pollEvent(event)) {
             ImGui::SFML::ProcessEvent(event);
@@ -48,17 +50,25 @@ int main() {
             if (event.type == sf::Event::Closed) {
                 window.close();
             }
-            if (event.type == sf::Event::MouseButtonPressed) {
-                press_x = event.mouseButton.x;
-                press_y = event.mouseButton.y;
-                mouse_pressed = true;
+
+            if (event.type == sf::Event::Resized) {
+              window.setView(sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height)));
             }
-            if (event.type == sf::Event::MouseButtonReleased) {
-                mouse_pressed = false;
-            }
-            if (event.type == sf::Event::MouseMoved) {
-                press_x = event.mouseMove.x;
-                press_y = event.mouseMove.y;
+            
+            if (event.type == sf::Event::MouseButtonReleased && edit_mode) {
+                /*
+                if (event.mouseButton.button == sf::Mouse::Button::Left) {
+                    auto x = (double)((double)event.mouseButton.x - size.x/2.0) / 5.0;
+                    auto y = (double)((double)-event.mouseButton.y + size.y/2.0) / 5.0;
+
+                    body.append_vertex(BodyVertex(Vector(x, y)));
+                }
+                */
+                if (event.mouseButton.button == sf::Mouse::Button::Right) {
+                    body.set_joints();
+                    edit_mode = false;
+                }
+                
             }
         }
 
@@ -67,6 +77,7 @@ int main() {
         ImGui::Begin("Settings");
         if (ImGui::Button("Restart")) {
             body = Body(nvertex);
+            edit_mode = true;
         }
 
         ImGui::Text("FPS: %f", 1/dt);
@@ -74,11 +85,12 @@ int main() {
         ImGui::SliderInt("Number of vertexes", &nvertex, 1, 64);
 
         window.clear(sf::Color::White);
-        body.update(dt);
+        if (!edit_mode) {
+            body.update(dt);
+        }
 
         ImGui::End();
         
-        auto size = window.getSize();
 
         sf::ConvexShape body_shape;
         body_shape.setFillColor(sf::Color(200, 200, 200));

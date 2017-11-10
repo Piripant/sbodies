@@ -32,16 +32,12 @@ BodyVertex::BodyVertex(Vector position) {
     this->velocity = Vector(0, 0);
 }
 
-void BodyVertex::set_joints(BodyVertex* body_a, BodyVertex* body_b) {
-    this->joined_bodies[0] = body_a;
-    this->joined_bodies[1] = body_b;
-
-    this->original_distances[0] = (this->position - body_a->position).magnitude();
-    this->original_distances[1] = (this->position - body_b->position).magnitude();
-}
-
 void BodyVertex::apply_force(float dt, Vector force) {
     this->velocity += force/mass*dt;
+}
+
+void BodyVertex::update(float dt) {
+    this->position += this->velocity * dt;
 }
 
 void draw_vector(Vector vec, Vector position) {
@@ -65,44 +61,46 @@ void draw_vector(Vector vec, Vector position) {
     debug_window->draw(line);
 }
 
-void BodyVertex::update(float dt, float volume) {
-    this->mass = bmass;
-    this->joint_force = jforce;
-    this->damping_ratio = dratio;
+void Body::update_vertex(BodyVertex& vertex, float dt, float volume) {
+    vertex.mass = bmass;
+    vertex.joint_force = jforce;
+    vertex.damping_ratio = dratio;
 
     auto force = Vector(0, 0);
     float surface = 0.0;
 
-    auto c = 2*this->damping_ratio*sqrt(this->mass*this->joint_force);
+    auto c = 2*vertex.damping_ratio*sqrt(vertex.mass*vertex.joint_force);
     for (int i = 0; i < 2; i++) {
-        auto joined_body = this->joined_bodies[i];
-        auto delta = this->position - joined_body->position;
+        auto joined_body = verts[vertex.joined_bodies[i]];
+        auto delta = vertex.position - joined_body.position;
         
-        auto relative_velocity = this->velocity - joined_body->velocity;
+        auto relative_velocity = vertex.velocity - joined_body.velocity;
         auto joint_velocity = delta.normalize() * relative_velocity.dot(delta.normalize());
 
-        auto extention = delta.magnitude() - this->original_distances[i];
+        auto extention = delta.magnitude() - vertex.original_distances[i];
         
         // F = -kx - cv
-        force += delta.normalize() * extention * -this->joint_force - joint_velocity*c;
+        force += delta.normalize() * extention * -vertex.joint_force - joint_velocity*c;
         
         surface += delta.magnitude();
     }
     
-    auto normal = -Vector(joined_bodies[0]->position.y - joined_bodies[1]->position.y,
-                          joined_bodies[1]->position.x - joined_bodies[0]->position.x).normalize();
+    auto normal = -Vector(verts[vertex.joined_bodies[0]].position.y - verts[vertex.joined_bodies[1]].position.y,
+                          verts[vertex.joined_bodies[1]].position.x - verts[vertex.joined_bodies[0]].position.x).normalize();
     
+
+    draw_vector(normal*5, vertex.position);
     auto intensity = R*n*surface/volume;
     force += normal*intensity;
     
-    this->apply_force(dt, force);
-    this->apply_force(dt, -velocity*air_drag);
-    this->position += this->velocity * dt;
+    vertex.apply_force(dt, force);
+    vertex.apply_force(dt, -vertex.velocity*air_drag);
+    vertex.update(dt);
 
-    if (this->position.y < 0) {
-        this->position.y = 0;
-        this->velocity.y = -this->velocity.y/2;
-        this->velocity.x = this->velocity.x/2;
+    if (vertex.position.y < 0) {
+        vertex.position.y = 0;
+        vertex.velocity.y = -vertex.velocity.y/2;
+        vertex.velocity.x = vertex.velocity.x/2;
     }
 }
 
@@ -116,18 +114,30 @@ Body::Body(unsigned int num_verts) {
             BodyVertex(position)
         );
     }
+    
+}
 
-    for (unsigned int i = 0; i < num_verts; i++) {
+void Body::append_vertex(BodyVertex vertex) {
+    this->verts.push_back(vertex);
+}
+
+void Body::set_joints() {
+    for (unsigned int i = 0; i < verts.size(); i++) {
+        auto next_i = (i + 1) % verts.size();
         auto prev_i = (int)i - 1;
         if (prev_i < 0) {
-            prev_i = num_verts-1;
+            prev_i = verts.size()-1;
         }
 
         auto prev_body = &this->verts[prev_i];
-        auto next_body = &this->verts[(i + 1) % num_verts];
+        auto next_body = &this->verts[next_i];
         
-        std::cout << prev_i << " " << (i+1) % num_verts << std::endl;
-        this->verts[i].set_joints(prev_body, next_body);
+        verts[i].joined_bodies[0] = prev_i;
+        verts[i].joined_bodies[1] = next_i;
+
+        verts[i].original_distances[0] = (verts[i].position - verts[next_i].position).magnitude();
+        verts[i].original_distances[1] = (verts[i].position - verts[prev_i].position).magnitude();
+
     }
 }
 
@@ -145,7 +155,7 @@ void Body::update(float dt) {
     }
     
     for (unsigned int i = 0; i < this->verts.size(); i++) {
-        this->verts[i].update(dt, volume);
+        this->update_vertex(verts[i], dt, volume);
     }
 }
 
